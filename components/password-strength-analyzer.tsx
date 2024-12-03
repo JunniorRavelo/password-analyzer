@@ -325,7 +325,7 @@ export default function Component() {
               <span className="text-blue-400">{'>'}</span>
               <span>Omar Castro</span>
               <Link href="https://github.com/omarcastro2002" className="text-green-400 hover:text-blue-400 transition-colors">GitHub</Link>
-              <Link href="https://linkedin.com/in/example" className="text-green-400 hover:text-blue-400 transition-colors">LinkedIn</Link>
+              <Link href="https://www.linkedin.com/in/omar-castro-6b4ba8207/" className="text-green-400 hover:text-blue-400 transition-colors">LinkedIn</Link>
             </div>
           </div>
           <div className="flex flex-col justify-center items-end">
