@@ -102,6 +102,13 @@ export function formatCrackTime(seconds: number): string {
   for (const unit of units) {
     if (seconds >= unit.seconds) {
       const value = Math.floor(seconds / unit.seconds)
+      // Cifras enormes: notación científica para que quepa en la UI
+      if (unit.label === 'años' && value >= 1_000_000_000_000_000) {
+        const y = seconds / 31_536_000
+        const [mantissa, expPart] = y.toExponential(2).split(/e\+/i)
+        const exp = expPart ?? '0'
+        return `≈ ${mantissa!.replace('.', ',')}×10^${exp} años`
+      }
       return `${value.toLocaleString('es')} ${unit.label}`
     }
   }
