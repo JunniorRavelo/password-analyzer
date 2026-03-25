@@ -95,7 +95,7 @@ export default function PasswordStrengthAnalyzer() {
         id="main-content"
         className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
       >
-        <div className="grid gap-8 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr] lg:gap-10">
+        <div className="grid gap-8 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] lg:gap-10">
           <aside className="lg:sticky lg:top-8 lg:self-start">
             <PasswordGeneratorPanel
               onApplyPassword={(value) => {
@@ -105,7 +105,7 @@ export default function PasswordStrengthAnalyzer() {
             />
           </aside>
 
-          <div className="flex flex-col gap-8">
+          <div className="flex min-w-0 flex-col gap-8">
             <section
               className="rounded-2xl border border-border/60 bg-card/35 p-6 shadow-lg shadow-black/15 backdrop-blur-sm sm:p-8"
               aria-labelledby="analyzer-heading"
@@ -237,7 +237,7 @@ export default function PasswordStrengthAnalyzer() {
                 />
               </div>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="mt-8 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
                 <StatCard
                   label="Longitud"
                   value={
@@ -460,14 +460,16 @@ function StatCard({
   small?: boolean
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-background/50 px-4 py-3">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-border/60 bg-background/50 px-4 py-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p
         className={cn(
-          'mt-1 font-medium text-foreground',
-          small ? 'text-sm leading-snug' : 'text-lg tabular-nums'
+          'mt-1 max-w-full font-medium text-foreground',
+          small
+            ? 'text-sm leading-snug break-words [overflow-wrap:anywhere]'
+            : 'text-lg tabular-nums'
         )}
       >
         {value}
