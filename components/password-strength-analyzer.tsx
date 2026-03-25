@@ -195,7 +195,11 @@ export default function PasswordStrengthAnalyzer() {
                 </ul>
               )}
 
-              <div className="mt-8 space-y-3">
+              <div
+                className="mt-8 space-y-3"
+                aria-live="polite"
+                aria-atomic="true"
+              >
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">
@@ -203,7 +207,9 @@ export default function PasswordStrengthAnalyzer() {
                     </p>
                     <p className="flex items-baseline gap-2">
                       <span className="text-3xl font-semibold tabular-nums">
-                        {password.length === 0 ? '—' : Math.round(strength.score)}
+                        {password.length === 0
+                          ? '—'
+                          : Math.round(strength.score)}
                       </span>
                       <span className="text-muted-foreground">/ 100</span>
                     </p>
@@ -265,7 +271,10 @@ export default function PasswordStrengthAnalyzer() {
                 />
               </div>
 
-              <p className="mt-6 rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              <p
+                className="mt-6 rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+                aria-live="polite"
+              >
                 {suggestion}
               </p>
             </section>
