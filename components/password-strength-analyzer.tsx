@@ -20,6 +20,19 @@ const CHAR_SETS = {
  */
 const ATTEMPTS_PER_SECOND = 1_000_000_000 // Aumentado para reflejar capacidades modernas
 
+/** Valor en [0, 1) determinista por índice: igual en SSR y en el navegador (evita desajuste de hidratación). */
+function matrixSeededUnit(seed: number): number {
+  let x = (seed * 9301 + 49297) % 233280
+  if (x < 0) x += 233280
+  return x / 233280
+}
+
+const MATRIX_PARTICLES = Array.from({ length: 50 }, (_, i) => ({
+  left: matrixSeededUnit(i * 3 + 1) * 100,
+  delay: matrixSeededUnit(i * 3 + 2) * 5,
+  duration: 5 + matrixSeededUnit(i * 3 + 3) * 5,
+}))
+
 /**
  * Tipos para los niveles de fortaleza.
  */
@@ -199,14 +212,14 @@ export default function Component() {
       {/* Fondo animado */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Efecto tipo Matrix */}
-        {Array.from({ length: 50 }).map((_, i) => (
+        {MATRIX_PARTICLES.map((p, i) => (
           <div
             key={i}
             className="absolute top-0 left-0 w-1 h-1 bg-green-500 opacity-50 animate-matrix"
             style={{
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${5 + Math.random() * 5}s`
+              left: `${p.left}%`,
+              animationDelay: `${p.delay}s`,
+              animationDuration: `${p.duration}s`,
             }}
           />
         ))}
