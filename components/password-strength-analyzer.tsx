@@ -85,8 +85,8 @@ export default function PasswordStrengthAnalyzer() {
             </div>
           </div>
           <p className="max-w-xl text-sm text-muted-foreground sm:text-right">
-            Analiza entropía y tiempo de búsqueda estimado, y crea contraseñas
-            aleatorias sin salir del navegador.
+            Genera contraseñas aleatorias en el navegador y, a continuación,
+            evalúa su fortaleza y el tiempo de búsqueda estimado.
           </p>
         </div>
       </header>
@@ -95,7 +95,16 @@ export default function PasswordStrengthAnalyzer() {
         id="main-content"
         className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
       >
-        <div className="grid gap-8 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_380px] lg:gap-10">
+        <div className="grid gap-8 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr] lg:gap-10">
+          <aside className="lg:sticky lg:top-8 lg:self-start">
+            <PasswordGeneratorPanel
+              onApplyPassword={(value) => {
+                setPassword(value)
+                setShowPassword(true)
+              }}
+            />
+          </aside>
+
           <div className="flex flex-col gap-8">
             <section
               className="rounded-2xl border border-border/60 bg-card/35 p-6 shadow-lg shadow-black/15 backdrop-blur-sm sm:p-8"
@@ -379,15 +388,6 @@ export default function PasswordStrengthAnalyzer() {
               </ul>
             </section>
           </div>
-
-          <aside className="lg:sticky lg:top-8 lg:self-start">
-            <PasswordGeneratorPanel
-              onApplyPassword={(value) => {
-                setPassword(value)
-                setShowPassword(true)
-              }}
-            />
-          </aside>
         </div>
       </main>
 
