@@ -1,359 +1,477 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Progress } from "@/components/ui/progress"
-import { Eye, EyeOff } from 'lucide-react'
+import React, { useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
+import {
+  Eye,
+  EyeOff,
+  Shield,
+  BookOpen,
+  ListChecks,
+  Copy,
+  Check,
+  X,
+  Sparkles,
+} from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
+import { PasswordGeneratorPanel } from '@/components/password-generator-panel'
+import {
+  ATTEMPTS_PER_SECOND,
+  STRENGTH_LEVELS,
+  calculatePasswordStrength,
+  formatCrackTime,
+  suggestionText,
+  validatePassword,
+} from '@/lib/password-utils'
+import { cn } from '@/lib/utils'
 
-/**
- * Tamaños de los conjuntos de caracteres.
- */
-const CHAR_SETS = {
-  lowercase: 26,
-  uppercase: 26,
-  numbers: 10,
-  symbols: 33
-}
+export default function PasswordStrengthAnalyzer() {
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [fieldCopied, setFieldCopied] = useState(false)
 
-/**
- * Intentos por segundo (capacidad de cómputo del atacante).
- */
-const ATTEMPTS_PER_SECOND = 1_000_000_000 // Aumentado para reflejar capacidades modernas
+  const strength = useMemo(
+    () => calculatePasswordStrength(password),
+    [password]
+  )
+  const errors = useMemo(() => validatePassword(password), [password])
+  const suggestion = useMemo(
+    () => suggestionText(password),
+    [password]
+  )
 
-/** Valor en [0, 1) determinista por índice: igual en SSR y en el navegador (evita desajuste de hidratación). */
-function matrixSeededUnit(seed: number): number {
-  let x = (seed * 9301 + 49297) % 233280
-  if (x < 0) x += 233280
-  return x / 233280
-}
-
-const MATRIX_PARTICLES = Array.from({ length: 50 }, (_, i) => ({
-  left: matrixSeededUnit(i * 3 + 1) * 100,
-  delay: matrixSeededUnit(i * 3 + 2) * 5,
-  duration: 5 + matrixSeededUnit(i * 3 + 3) * 5,
-}))
-
-/**
- * Tipos para los niveles de fortaleza.
- */
-interface StrengthLevel {
-  name: string
-  color: string
-  maxScore: number
-}
-
-const strengthLevels: StrengthLevel[] = [
-  { name: 'Extremadamente Débil', color: 'text-red-500', maxScore: 20 },
-  { name: 'Débil', color: 'text-orange-500', maxScore: 40 },
-  { name: 'Medio', color: 'text-yellow-500', maxScore: 60 },
-  { name: 'Fuerte', color: 'text-green-500', maxScore: 80 },
-  { name: 'Muy Fuerte', color: 'text-blue-500', maxScore: 100 }
-]
-
-/**
- * Tipo para el resultado de la función calculatePasswordStrength.
- */
-interface PasswordStrengthResult {
-  secondsToCrack: number
-  strengthLevel: StrengthLevel
-  score: number
-  possibleCombinations: number
-  charSetSize: number
-  length: number
-  categories: number
-}
-
-/**
- * Función para calcular la fortaleza de la contraseña.
- * @param password - Contraseña ingresada por el usuario.
- * @returns Un objeto con detalles sobre la fortaleza de la contraseña.
- */
-function calculatePasswordStrength(password: string): PasswordStrengthResult {
-  const length = password.length
-  const uniqueChars = new Set(password).size
-
-  // Verificar presencia de diferentes tipos de caracteres
-  const hasLowercase = /[a-z]/.test(password)
-  const hasUppercase = /[A-Z]/.test(password)
-  const hasNumbers = /[0-9]/.test(password)
-  const hasSymbols = /[^a-zA-Z0-9]/.test(password)
-
-  // Contar cuántas categorías se cumplen
-  const categories = [hasLowercase, hasUppercase, hasNumbers, hasSymbols].filter(Boolean).length
-
-  // Penalización si no se cumplen al menos 3 categorías
-  let categoryPenalty = 0
-  if (categories < 3) {
-    categoryPenalty = (3 - categories) * 10 // Penalización por cada categoría faltante
-  }
-
-  // Calcular tamaño del conjunto de caracteres
-  let charSetSize = 0
-  if (hasLowercase) charSetSize += CHAR_SETS.lowercase
-  if (hasUppercase) charSetSize += CHAR_SETS.uppercase
-  if (hasNumbers) charSetSize += CHAR_SETS.numbers
-  if (hasSymbols) charSetSize += CHAR_SETS.symbols
-
-  // Calcular combinaciones posibles
-  const possibleCombinations = Math.pow(charSetSize, length)
-
-  // Calcular tiempo en segundos para descifrar
-  let secondsToCrack = possibleCombinations / ATTEMPTS_PER_SECOND
-
-  // Penalizar tiempo si la contraseña es débil
-  if (categories < 3) {
-    secondsToCrack = secondsToCrack / Math.pow(10, 6) // Dividir tiempo por un factor grande
-  }
-
-  // Calcular puntaje base
-  let score = Math.min(100, length * 5 + categories * 10 + uniqueChars)
-
-  // Aplicar penalización al puntaje
-  score = score - categoryPenalty
-  score = Math.max(0, score) // Asegurarse de que el puntaje no sea negativo
-
-  // Determinar nivel de fortaleza
-  const strengthLevel = strengthLevels.find(level => score <= level.maxScore) || strengthLevels[strengthLevels.length - 1]
-
-  return { secondsToCrack, strengthLevel, score, possibleCombinations, charSetSize, length, categories }
-}
-
-/**
- * Función para formatear el tiempo de manera legible.
- * @param seconds - Tiempo en segundos.
- * @returns Una cadena con el tiempo formateado.
- */
-function formatTime(seconds: number): string {
-  if (seconds < 1) return 'menos de 1 segundo'
-  const units = [
-    { label: 'años', seconds: 31_536_000 },
-    { label: 'días', seconds: 86_400 },
-    { label: 'horas', seconds: 3_600 },
-    { label: 'minutos', seconds: 60 },
-    { label: 'segundos', seconds: 1 }
-  ]
-
-  for (const unit of units) {
-    if (seconds >= unit.seconds) {
-      const value = Math.floor(seconds / unit.seconds)
-      return `${value} ${unit.label}`
+  const copyField = useCallback(async () => {
+    if (!password) return
+    try {
+      await navigator.clipboard.writeText(password)
+      setFieldCopied(true)
+      window.setTimeout(() => setFieldCopied(false), 2000)
+    } catch {
+      /* ignore */
     }
-  }
-  return 'menos de 1 segundo'
-}
-
-/**
- * Función para validar la contraseña y generar mensajes de error.
- * @param password - Contraseña ingresada por el usuario.
- * @returns Un arreglo de mensajes de error.
- */
-function validatePassword(password: string): string[] {
-  const errors = []
-  if (password.length < 8) {
-    errors.push("La contraseña debe tener al menos 8 caracteres.")
-  }
-
-  const hasLowercase = /[a-z]/.test(password)
-  const hasUppercase = /[A-Z]/.test(password)
-  const hasNumbers = /[0-9]/.test(password)
-  const hasSymbols = /[^a-zA-Z0-9]/.test(password)
-
-  const categories = [hasLowercase, hasUppercase, hasNumbers, hasSymbols].filter(Boolean).length
-
-  if (categories < 3) {
-    errors.push("Incluye al menos 3 de las siguientes categorías: letras mayúsculas, letras minúsculas, números y símbolos.")
-  }
-
-  if (/^(.)\1+$/.test(password)) {
-    errors.push("La contraseña no debe contener patrones obvios o caracteres repetidos.")
-  }
-
-  return errors
-}
-
-export default function Component() {
-  const [password, setPassword] = useState<string>('')
-  const [strength, setStrength] = useState<PasswordStrengthResult>({
-    secondsToCrack: 0,
-    strengthLevel: strengthLevels[0],
-    score: 0,
-    possibleCombinations: 0,
-    charSetSize: 0,
-    length: 0,
-    categories: 0
-  })
-  const [errors, setErrors] = useState<string[]>([])
-  const [showPassword, setShowPassword] = useState<boolean>(false)
-
-  useEffect(() => {
-    setStrength(calculatePasswordStrength(password))
-    setErrors(validatePassword(password))
   }, [password])
 
-  /**
-   * Función para generar sugerencias al usuario.
-   * @returns Una cadena con sugerencias para mejorar la contraseña.
-   */
-  const getSuggestion = (): string => {
-    if (password.length < 8) return 'Usa al menos 8 caracteres.'
-    const suggestions = []
-    if (!/[A-Z]/.test(password)) suggestions.push('Añade letras mayúsculas.')
-    if (!/[a-z]/.test(password)) suggestions.push('Añade letras minúsculas.')
-    if (!/[0-9]/.test(password)) suggestions.push('Añade números.')
-    if (!/[^a-zA-Z0-9]/.test(password)) suggestions.push('Añade símbolos.')
-    if (suggestions.length > 0) {
-      return suggestions.join(' ')
-    }
-    return 'Buena contraseña, ¡sigue así!'
-  }
-
   return (
-    <div className="min-h-screen bg-black text-green-400 font-mono p-4 sm:p-8 relative overflow-hidden flex flex-col">
-      {/* Fondo animado */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Efecto tipo Matrix */}
-        {MATRIX_PARTICLES.map((p, i) => (
-          <div
-            key={i}
-            className="absolute top-0 left-0 w-1 h-1 bg-green-500 opacity-50 animate-matrix"
-            style={{
-              left: `${p.left}%`,
-              animationDelay: `${p.delay}s`,
-              animationDuration: `${p.duration}s`,
-            }}
-          />
-        ))}
-      </div>
-      <div className="max-w-4xl mx-auto relative z-10 flex-grow">
-        <h1 className="text-2xl sm:text-4xl mb-4 sm:mb-8 text-center text-blue-400">Analizador de Fortaleza de Contraseña</h1>
-        <div className="mb-8">
-          <label htmlFor="password" className="block mb-2">Ingresa tu contraseña:</label>
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-900 border-2 border-green-500 rounded p-2 sm:p-3 text-white focus:outline-none focus:border-blue-400 text-lg pr-12"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 flex items-center px-3 text-green-400 hover:text-blue-400 transition-colors bg-gray-800 bg-opacity-50 hover:bg-opacity-75 rounded-r"
-              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-            >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
-          {errors.length > 0 && (
-            <div className="mt-2 text-red-500">
-              {errors.map((error, index) => (
-                <p key={index}>{error}</p>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="mb-4">
-          <Progress value={strength.score} className="h-2" />
-        </div>
-        <div className="mb-8 text-center">
-          <p className="text-xl">
-            Nivel: <span className={`font-bold ${strength.strengthLevel.color}`}>
-              {strength.strengthLevel.name}
+    <div className="relative min-h-screen flex flex-col">
+      <div
+        className="pointer-events-none fixed inset-0 app-backdrop"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none fixed inset-0 subtle-grid opacity-[0.45]"
+        aria-hidden
+      />
+
+      <a
+        href="#main-content"
+        className="focus:bg-primary focus:text-primary-foreground sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:px-3 focus:py-2"
+      >
+        Ir al contenido principal
+      </a>
+
+      <header className="relative z-10 border-b border-border/60 bg-background/60 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
+              <Shield className="h-5 w-5" aria-hidden />
             </span>
-          </p>
-          <p>Tiempo estimado para descifrar: {formatTime(strength.secondsToCrack)}</p>
-          <p className="text-sm mt-2">{getSuggestion()}</p>
-        </div>
-        <div className="overflow-x-auto mb-8">
-          <table className="w-full border-collapse text-sm sm:text-base">
-            <thead>
-              <tr className="bg-gray-900">
-                <th className="border border-green-500 p-1 sm:p-2">Nivel</th>
-                <th className="border border-green-500 p-1 sm:p-2">Puntaje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {strengthLevels.map((level, index) => (
-                <tr key={index} className="bg-gray-800 bg-opacity-50 hover:bg-opacity-75 transition-colors">
-                  <td className={`border border-green-500 p-1 sm:p-2 ${level.color}`}>
-                    {level.name}
-                  </td>
-                  <td className="border border-green-500 p-1 sm:p-2 text-cyan-300">
-                    {index === 0 ? '≤ 20' : `> ${strengthLevels[index - 1].maxScore} y ≤ ${level.maxScore}`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {/* Sección actualizada de Fórmula de Cálculo */}
-        <div className="mb-8 bg-gray-900 p-4 rounded-lg border border-green-500">
-          <h2 className="text-xl text-blue-400 mb-4">Fórmula de Cálculo</h2>
-          <p className="text-lg mb-4">
-            El tiempo estimado para descifrar la contraseña se calcula utilizando la siguiente fórmula:
-          </p>
-          <p className="text-center text-lg font-semibold">
-            {"Tiempo estimado = (Tamaño del conjunto de caracteres) ^ (Longitud de la contraseña) ÷ Intentos por segundo"}
-          </p>
-          <p className="mt-4 text-sm">
-            Donde:
-            <br />
-            - <strong>Tamaño del conjunto de caracteres</strong> ({strength.charSetSize}): Suma de los tipos de caracteres utilizados (letras minúsculas, mayúsculas, números, símbolos).
-            <br />
-            - <strong>Longitud de la contraseña</strong> ({strength.length}): Número total de caracteres en la contraseña.
-            <br />
-            - <strong>Intentos por segundo</strong> ({ATTEMPTS_PER_SECOND.toLocaleString()}): Capacidad de cómputo del atacante.
-          </p>
-          <p className="mt-4 text-sm">
-            - <strong>Número total de combinaciones</strong>: {strength.possibleCombinations.toExponential(2)}
-          </p>
-          <p className="mt-4 text-sm">
-            <strong>Nota:</strong> Si la contraseña no incluye al menos 3 categorías de caracteres, se aplica una penalización que reduce significativamente el tiempo estimado para reflejar la mayor facilidad de descifrado.
-          </p>
-        </div>
-        {/* Sección de Reglas del Sistema */}
-        <div className="mb-8 bg-gray-900 p-4 rounded-lg border border-green-500">
-          <h2 className="text-xl text-blue-400 mb-4">Reglas del Sistema</h2>
-          <ul className="list-disc list-inside space-y-2">
-            <li>La contraseña debe tener al menos 8 caracteres.</li>
-            <li>Se recomienda usar al menos 3 de las siguientes categorías: letras mayúsculas, minúsculas, números y símbolos.</li>
-            <li>Se penalizan los patrones obvios y caracteres repetidos.</li>
-            <li>La fortaleza se calcula considerando la longitud, la diversidad de caracteres y la complejidad.</li>
-            <li>El tiempo de descifrado se estima basado en ataques de fuerza bruta modernos.</li>
-          </ul>
-        </div>
-      </div>
-      {/* Pie de página */}
-      <footer className="relative z-10 mt-12 pt-8 border-t border-green-500">
-        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <span className="text-blue-400">{'>'}</span>
-              <span>J. Santiago Ravelo</span>
-              <Link href="https://github.com/JunniorRavelo" className="text-green-400 hover:text-blue-400 transition-colors">GitHub</Link>
-              <Link href="https://www.linkedin.com/in/jsravelo/" className="text-green-400 hover:text-blue-400 transition-colors">LinkedIn</Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-blue-400">{'>'}</span>
-              <span>Omar Castro</span>
-              <Link href="https://github.com/omarcastro2002" className="text-green-400 hover:text-blue-400 transition-colors">GitHub</Link>
-              <Link href="https://www.linkedin.com/in/omar-castro-6b4ba8207/" className="text-green-400 hover:text-blue-400 transition-colors">LinkedIn</Link>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Herramienta de seguridad
+              </p>
+              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                PassGuard
+              </h1>
             </div>
           </div>
-          <div className="flex flex-col justify-center items-end">
-            <p className="text-right text-sm">
-              <span className="text-blue-400">{'$'}</span> Ingeniería de Sistemas
-            </p>
-            <p className="text-right text-sm">
-              <span className="text-blue-400">{'$'}</span> Universidad de Pamplona, Colombia - Cúcuta
-            </p>
-          </div>
+          <p className="max-w-xl text-sm text-muted-foreground sm:text-right">
+            Analiza entropía y tiempo de búsqueda estimado, y crea contraseñas
+            aleatorias sin salir del navegador.
+          </p>
         </div>
-        <div className="mt-8 text-center text-xs">
-          <p>&copy; {new Date().getFullYear()} Cybernetic Password Strength Analyzer</p>
+      </header>
+
+      <main
+        id="main-content"
+        className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
+      >
+        <div className="grid gap-8 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_380px] lg:gap-10">
+          <div className="flex flex-col gap-8">
+            <section
+              className="rounded-2xl border border-border/60 bg-card/35 p-6 shadow-lg shadow-black/15 backdrop-blur-sm sm:p-8"
+              aria-labelledby="analyzer-heading"
+            >
+              <div className="mb-6 flex items-start gap-3">
+                <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+                <div>
+                  <h2
+                    id="analyzer-heading"
+                    className="text-lg font-semibold tracking-tight"
+                  >
+                    Analizar contraseña
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    La estimación es orientativa y asume un ataque de fuerza
+                    bruta genérico.
+                  </p>
+                </div>
+              </div>
+
+              <label
+                htmlFor="password"
+                className="mb-2 block text-sm font-medium text-foreground"
+              >
+                Contraseña
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Escribe o pega aquí…"
+                  className="w-full rounded-xl border border-input bg-background/80 py-3 pr-28 pl-4 font-mono text-base text-foreground shadow-inner outline-none ring-offset-background transition-shadow placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                />
+                <div className="absolute inset-y-1 right-1 flex items-center gap-0.5 rounded-r-lg bg-background/90 p-0.5">
+                  <button
+                    type="button"
+                    onClick={copyField}
+                    disabled={!password}
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                    aria-label="Copiar contraseña del campo"
+                  >
+                    {fieldCopied ? (
+                      <Check className="h-4 w-4 text-emerald-400" aria-hidden />
+                    ) : (
+                      <Copy className="h-4 w-4" aria-hidden />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label={
+                      showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPassword('')}
+                    disabled={!password}
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                    aria-label="Limpiar campo"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+              </div>
+
+              {errors.length > 0 && (
+                <ul
+                  className="mt-4 list-inside list-disc space-y-1 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                  role="alert"
+                >
+                  {errors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="mt-8 space-y-3">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Puntuación
+                    </p>
+                    <p className="flex items-baseline gap-2">
+                      <span className="text-3xl font-semibold tabular-nums">
+                        {password.length === 0 ? '—' : Math.round(strength.score)}
+                      </span>
+                      <span className="text-muted-foreground">/ 100</span>
+                    </p>
+                  </div>
+                  <p
+                    className={cn(
+                      'text-lg font-semibold',
+                      password.length === 0
+                        ? 'text-muted-foreground'
+                        : strength.strengthLevel.colorClass
+                    )}
+                  >
+                    {password.length === 0
+                      ? 'Sin datos'
+                      : strength.strengthLevel.name}
+                  </p>
+                </div>
+                <Progress
+                  value={password.length === 0 ? 0 : strength.score}
+                  indicatorClassName={
+                    password.length === 0
+                      ? undefined
+                      : 'shadow-[0_0_12px_-2px_var(--tw-shadow-color)] shadow-current'
+                  }
+                  indicatorStyle={{
+                    backgroundColor:
+                      password.length === 0
+                        ? '#52525b'
+                        : strength.strengthLevel.barColor,
+                  }}
+                />
+              </div>
+
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                <StatCard
+                  label="Longitud"
+                  value={
+                    password.length === 0
+                      ? '—'
+                      : String(strength.length)
+                  }
+                />
+                <StatCard
+                  label="Tipos de carácter"
+                  value={
+                    password.length === 0
+                      ? '—'
+                      : `${strength.categories} / 4`
+                  }
+                />
+                <StatCard
+                  label="Tiempo estimado"
+                  value={
+                    password.length === 0
+                      ? '—'
+                      : formatCrackTime(strength.secondsToCrack)
+                  }
+                  small
+                />
+              </div>
+
+              <p className="mt-6 rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                {suggestion}
+              </p>
+            </section>
+
+            <section
+              className="rounded-2xl border border-border/60 bg-card/35 p-6 shadow-lg shadow-black/15 backdrop-blur-sm sm:p-8"
+              aria-labelledby="levels-heading"
+            >
+              <div className="mb-4 flex items-center gap-2">
+                <ListChecks className="h-5 w-5 text-primary" aria-hidden />
+                <h2 id="levels-heading" className="text-lg font-semibold">
+                  Escala de niveles
+                </h2>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-border/80">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border/80 bg-muted/50">
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Nivel
+                      </th>
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Rango de puntaje
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {STRENGTH_LEVELS.map((level, index) => (
+                      <tr
+                        key={level.name}
+                        className={cn(
+                          'border-b border-border/50 last:border-0 transition-colors hover:bg-muted/30',
+                          password.length > 0 &&
+                            strength.strengthLevel.name === level.name &&
+                            'bg-primary/10'
+                        )}
+                      >
+                        <td
+                          className={cn(
+                            'px-4 py-3 font-medium',
+                            level.colorClass
+                          )}
+                        >
+                          {level.name}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground tabular-nums">
+                          {index === 0
+                            ? `≤ ${level.maxScore}`
+                            : `>${STRENGTH_LEVELS[index - 1]!.maxScore} – ${level.maxScore}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <details className="group rounded-2xl border border-border/60 bg-card/35 shadow-lg shadow-black/15 backdrop-blur-sm">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-5 font-semibold [&::-webkit-details-marker]:hidden">
+                <BookOpen className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                Cómo se calcula la estimación
+                <span className="ml-auto text-sm font-normal text-muted-foreground group-open:hidden">
+                  Abrir
+                </span>
+                <span className="ml-auto hidden text-sm font-normal text-muted-foreground group-open:inline">
+                  Cerrar
+                </span>
+              </summary>
+              <div className="border-t border-border/60 px-6 pb-6 pt-2 text-sm leading-relaxed text-muted-foreground">
+                <p className="mb-4 text-foreground/90">
+                  Se aproxima el espacio de búsqueda como{' '}
+                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                    |alfabeto|
+                    <sup>longitud</sup>
+                  </code>{' '}
+                  y se divide por una tasa de intentos por segundo fija (
+                  {ATTEMPTS_PER_SECOND.toLocaleString('es')}) solo a modo
+                  ilustrativo.
+                </p>
+                <ul className="mb-4 list-inside list-disc space-y-2">
+                  <li>
+                    Tamaño del alfabeto actual:{' '}
+                    <strong className="text-foreground">
+                      {password.length === 0 ? '—' : strength.charSetSize}
+                    </strong>
+                  </li>
+                  <li>
+                    Combinaciones (orden de magnitud):{' '}
+                    <strong className="text-foreground">
+                      {password.length === 0 || strength.charSetSize === 0
+                        ? '—'
+                        : strength.possibleCombinations.toExponential(2)}
+                    </strong>
+                  </li>
+                  <li>
+                    Si hay menos de tres tipos de caracteres, se aplica una
+                    penalización al tiempo y al puntaje.
+                  </li>
+                </ul>
+                <p>
+                  Las contraseñas reales pueden ser mucho más débiles si aparecen
+                  en filtraciones o son frases de diccionario. Esta herramienta no
+                  sustituye a un gestor de contraseñas ni a la MFA.
+                </p>
+              </div>
+            </details>
+
+            <section
+              className="rounded-2xl border border-border/60 bg-card/35 p-6 shadow-lg shadow-black/15 backdrop-blur-sm sm:p-8"
+              aria-labelledby="rules-heading"
+            >
+              <h2 id="rules-heading" className="mb-4 text-lg font-semibold">
+                Criterios recomendados
+              </h2>
+              <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
+                <li>Mínimo 8 caracteres; idealmente 12 o más para cuentas críticas.</li>
+                <li>Combina mayúsculas, minúsculas, números y símbolos.</li>
+                <li>Evita patrones obvios y repeticiones del mismo carácter.</li>
+                <li>Usa el generador con exclusiones ambiguas si copias contraseñas a mano.</li>
+              </ul>
+            </section>
+          </div>
+
+          <aside className="lg:sticky lg:top-8 lg:self-start">
+            <PasswordGeneratorPanel
+              onApplyPassword={(value) => {
+                setPassword(value)
+                setShowPassword(true)
+              }}
+            />
+          </aside>
+        </div>
+      </main>
+
+      <footer className="relative z-10 mt-auto border-t border-border/60 bg-background/70 py-10 backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-8 md:grid-cols-2 md:gap-12">
+            <div className="space-y-5 text-sm">
+              <p className="font-medium text-foreground">Autores</p>
+              <div className="space-y-3 text-muted-foreground">
+                <p>
+                  <span className="text-foreground">J. Santiago Ravelo</span>{' '}
+                  ·{' '}
+                  <Link
+                    href="https://github.com/JunniorRavelo"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    GitHub
+                  </Link>{' '}
+                  ·{' '}
+                  <Link
+                    href="https://www.linkedin.com/in/jsravelo/"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    LinkedIn
+                  </Link>
+                </p>
+                <p>
+                  <span className="text-foreground">Omar Castro</span> ·{' '}
+                  <Link
+                    href="https://github.com/omarcastro2002"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    GitHub
+                  </Link>{' '}
+                  ·{' '}
+                  <Link
+                    href="https://www.linkedin.com/in/omar-castro-6b4ba8207/"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    LinkedIn
+                  </Link>
+                </p>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground md:text-right">
+              <p className="font-medium text-foreground">Ingeniería de Sistemas</p>
+              <p className="mt-2">Universidad de Pamplona, Colombia</p>
+            </div>
+          </div>
+          <p
+            className="mt-10 text-center text-xs text-muted-foreground"
+            suppressHydrationWarning
+          >
+            © {new Date().getFullYear()} PassGuard · Proyecto académico de
+            análisis de fortaleza de contraseñas.
+          </p>
         </div>
       </footer>
+    </div>
+  )
+}
+
+function StatCard({
+  label,
+  value,
+  small,
+}: {
+  label: string
+  value: string
+  small?: boolean
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/50 px-4 py-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={cn(
+          'mt-1 font-medium text-foreground',
+          small ? 'text-sm leading-snug' : 'text-lg tabular-nums'
+        )}
+      >
+        {value}
+      </p>
     </div>
   )
 }
