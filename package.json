@@ -3,6 +3,14 @@
   "version": "2.0.0",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JunniorRavelo/password-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JunniorRavelo/password-analyzer/issues"
+  },
+  "homepage": "https://github.com/JunniorRavelo/password-analyzer#readme",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

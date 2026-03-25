@@ -2,6 +2,9 @@
 
 **PassGuard** is a privacy-first web app to **generate cryptographically strong passwords** and **analyze password strength**—entirely in the browser. No passwords are sent to a server.
 
+**Repository:** [github.com/JunniorRavelo/password-analyzer](https://github.com/JunniorRavelo/password-analyzer)
+
+[![GitHub](https://img.shields.io/badge/GitHub-repo-181717?style=flat&logo=github)](https://github.com/JunniorRavelo/password-analyzer)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat&logo=next.js&logo=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logo=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -28,7 +31,7 @@
 **Requirements:** Node.js 20+ (recommended) and npm.
 
 ```bash
-git clone <your-repo-url>.git
+git clone https://github.com/JunniorRavelo/password-analyzer.git
 cd password-analyzer
 npm install
 npm run dev
