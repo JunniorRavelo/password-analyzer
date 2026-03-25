@@ -2,10 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
@@ -73,6 +69,32 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .app-backdrop {
+    background-color: hsl(var(--background));
+    background-image: radial-gradient(
+        ellipse 85% 55% at 50% -25%,
+        hsl(173 42% 16% / 0.45),
+        transparent
+      ),
+      radial-gradient(
+        ellipse 50% 35% at 100% 0%,
+        hsl(221 48% 18% / 0.3),
+        transparent
+      ),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(222 22% 7%) 100%);
+  }
+  .subtle-grid {
+    background-size: 44px 44px;
+    background-image: linear-gradient(
+        to right,
+        hsl(var(--border) / 0.4) 1px,
+        transparent 1px
+      ),
+      linear-gradient(to bottom, hsl(var(--border) / 0.4) 1px, transparent 1px);
   }
 }
